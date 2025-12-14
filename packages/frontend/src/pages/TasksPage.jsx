@@ -14,8 +14,12 @@ import {
   CircularProgress,
   IconButton,
   Tooltip,
-  MenuItem
+  MenuItem,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails
 } from '@mui/material'
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import SaveIcon from '@mui/icons-material/Save'
 import DeleteIcon from '@mui/icons-material/Delete'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
@@ -45,6 +49,7 @@ const TasksPage = () => {
     currentThread: 0,
     totalThreads: 0
   })
+  const [advancedControlsExpanded, setAdvancedControlsExpanded] = useState(false)
   const queryClient = useQueryClient()
 
   const { data: tokens } = useQuery({
@@ -549,31 +554,48 @@ const TasksPage = () => {
             </Typography>
           )}
 
-          <Box sx={{ mb: 2 }}>
-            <TextField
-              label='System Prompt'
-              value={systemPrompt}
-              onChange={(e) => setSystemPrompt(e.target.value)}
-              placeholder='System prompt sent to the model'
-              multiline
-              minRows={4}
-              fullWidth
-              helperText='Used for this Generate call only (resets on refresh)'
-            />
-          </Box>
+          <Accordion
+            expanded={advancedControlsExpanded}
+            onChange={(e, expanded) => setAdvancedControlsExpanded(expanded)}
+            sx={{ mb: 2 }}
+          >
+            <AccordionSummary
+              expandIcon={<ExpandMoreIcon />}
+              aria-controls='advanced-controls-content'
+              id='advanced-controls-header'
+            >
+              <Typography variant='subtitle1' sx={{ fontWeight: 500 }}>
+                Prompt Settings
+              </Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Box sx={{ mb: 2 }}>
+                <TextField
+                  label='System Prompt'
+                  value={systemPrompt}
+                  onChange={(e) => setSystemPrompt(e.target.value)}
+                  placeholder='System prompt sent to the model'
+                  multiline
+                  minRows={4}
+                  fullWidth
+                  helperText='Used for this Generate call only (resets on refresh)'
+                />
+              </Box>
 
-          <Box sx={{ mb: 2 }}>
-            <TextField
-              label='Prompt examples/criteria'
-              value={examplesCriteria}
-              onChange={(e) => setExamplesCriteria(e.target.value)}
-              placeholder='Examples/criteria sent to the model'
-              multiline
-              minRows={10}
-              fullWidth
-              helperText='Used for this Generate call only (resets on refresh)'
-            />
-          </Box>
+              <Box sx={{ mb: 2 }}>
+                <TextField
+                  label='Prompt examples/criteria'
+                  value={examplesCriteria}
+                  onChange={(e) => setExamplesCriteria(e.target.value)}
+                  placeholder='Examples/criteria sent to the model'
+                  multiline
+                  minRows={10}
+                  fullWidth
+                  helperText='Used for this Generate call only (resets on refresh)'
+                />
+              </Box>
+            </AccordionDetails>
+          </Accordion>
 
           <Box sx={{ mb: 2 }}>
             <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
