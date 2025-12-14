@@ -6,20 +6,6 @@ const grounding = require('./task-grounding')
 
 const LOGS_DIR = path.join(__dirname, '..', 'logs')
 
-const TASK_SCHEMA = {
-  type: 'object',
-  properties: {
-    task_title: { type: 'string' },
-    task_description: { type: 'string' }
-  },
-  required: ['task_title', 'task_description']
-}
-
-const TASK_ARRAY_SCHEMA = {
-  type: 'array',
-  items: TASK_SCHEMA
-}
-
 const THREAD_TASK_SCHEMA = {
   type: 'object',
   properties: {
@@ -36,18 +22,7 @@ const THREAD_TASK_ARRAY_SCHEMA = {
 
 const DEFAULT_EXAMPLES_CRITERIA = ''
 
-const DEFAULT_PROMPT_TEMPLATE = `Extract actionable tasks that are explicitly supported by this conversation. Return a JSON array matching this schema:
-
-\${schemaDescription}
-
-\nCRITICAL:\n- Only extract tasks that are explicitly supported by the conversation text.\n- If there is no clear actionable work, return [] (an empty array).\n- Do NOT use outside knowledge.\n
-
-\${examplesCriteria}
-
-Conversation:
-\${conversationText}`
-
-const DEFAULT_THREAD_PROMPT_TEMPLATE = `Extract actionable tasks from this single Slack thread. Return a JSON array matching this schema:
+const DEFAULT_PROMPT_TEMPLATE = `Extract actionable tasks from this single Slack thread. Return a JSON array matching this schema:
 
 \${schemaDescription}
 
@@ -73,8 +48,7 @@ if (!fs.existsSync(LOGS_DIR)) {
 }
 
 module.exports = {
-  extractTasksWithMultiPass,
-  extractThreadTasksSinglePass
+  extractThreadTasks
 }
 
 function validateEvidenceAgainstThread (task, thread) {
@@ -120,104 +94,7 @@ function writeToLogFile (message) {
   }
 }
 
-async function extractTasksWithMultiPass (options) {
-  const {
-    conversationText,
-    ollamaUrl = 'http://192.168.68.110:11434',
-    model = 'llama3.1',
-    progressCallback,
-    numCtx = null,
-    systemPrompt = null,
-    examplesCriteria = null
-  } = options
-
-  if (progressCallback) {
-    progressCallback(1, 1, [], 'Extracting tasks from conversation...')
-  }
-
-  const tasks = await extractTasksSinglePass(
-    conversationText,
-    ollamaUrl,
-    model,
-    numCtx,
-    systemPrompt,
-    examplesCriteria
-  )
-
-  if (progressCallback) {
-    progressCallback(1, 1, tasks, `Found ${tasks.length} tasks`)
-  }
-
-  return tasks
-}
-
-async function extractTasksSinglePass (
-  conversationText,
-  ollamaUrl,
-  model,
-  numCtx = null,
-  systemPrompt = null,
-  examplesCriteria = null
-) {
-  const schemaDescription = JSON.stringify(TASK_ARRAY_SCHEMA, null, 2)
-  const examplesCriteriaText = typeof examplesCriteria === 'string' &&
-    examplesCriteria.trim().length > 0
-    ? examplesCriteria
-    : DEFAULT_EXAMPLES_CRITERIA
-
-  const prompt = DEFAULT_PROMPT_TEMPLATE
-    .replace(/\${schemaDescription}/g, schemaDescription)
-    .replace(/\${examplesCriteria}/g, examplesCriteriaText)
-    .replace(/\${conversationText}/g, conversationText)
-
-  const response = await callOllamaAPI({
-    model,
-    prompt,
-    ollamaUrl,
-    temperature: 0,
-    maxTokens: 3000,
-    passName: 'Single Pass',
-    format: TASK_ARRAY_SCHEMA,
-    numCtx,
-    systemPrompt
-  })
-  const tasks = parseTasksFromResponse(response)
-
-  const stats = {
-    parsed: tasks.length,
-    filteredPRReview: 0,
-    filteredNotGrounded: 0
-  }
-
-  const kept = tasks
-    .filter(task => {
-      const keep = !isPRReviewTask(task)
-      if (!keep) stats.filteredPRReview++
-      return keep
-    })
-    .filter(task => {
-      const keep = grounding.isTaskGroundedToText(task, conversationText, {
-        minOverlapRatio: 0.06,
-        minOverlapTokens: 2
-      })
-      if (!keep) stats.filteredNotGrounded++
-      return keep
-    })
-    .map(task => ({
-      task_title: task.task_title,
-      task_description: task.task_description || ''
-    }))
-
-  writeToLogFile(
-    `Post-filter summary [Single Pass]: parsed=${stats.parsed}, ` +
-    `kept=${kept.length}, prReview=${stats.filteredPRReview}, ` +
-    `notGrounded=${stats.filteredNotGrounded}`
-  )
-
-  return kept
-}
-
-async function extractThreadTasksSinglePass (options) {
+async function extractThreadTasks (options) {
   const {
     thread,
     ollamaUrl,
@@ -248,7 +125,7 @@ async function extractThreadTasksSinglePass (options) {
     ? examplesCriteria
     : DEFAULT_EXAMPLES_CRITERIA
 
-  const prompt = DEFAULT_THREAD_PROMPT_TEMPLATE
+  const prompt = DEFAULT_PROMPT_TEMPLATE
     .replace(/\${schemaDescription}/g, schemaDescription)
     .replace(/\${examplesCriteria}/g, examplesCriteriaText)
     .replace(/\${threadJson}/g, JSON.stringify(safeThread, null, 2))
@@ -259,7 +136,7 @@ async function extractThreadTasksSinglePass (options) {
     ollamaUrl,
     temperature: 0,
     maxTokens: 3000,
-    passName: 'Thread Single Pass',
+    passName: 'Thread Extraction',
     format: THREAD_TASK_ARRAY_SCHEMA,
     numCtx,
     systemPrompt
@@ -333,7 +210,7 @@ async function extractThreadTasksSinglePass (options) {
   const finalTasks = scored.slice(0, maxPerThread).map(s => s.task)
 
   writeToLogFile(
-    `Post-filter summary [Thread Single Pass] threadId=${threadId}: ` +
+    `Post-filter summary [Thread Extraction] threadId=${threadId}: ` +
     `parsed=${stats.parsed}, kept=${normalizedTasks.length}, returned=${finalTasks.length}, ` +
     `prReview=${stats.filteredPRReview}, repairedEvidence=${stats.repairedEvidence}, ` +
     `badEvidence=${stats.filteredBadEvidence}, notGrounded=${stats.filteredNotGrounded}`

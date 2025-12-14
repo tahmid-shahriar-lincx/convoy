@@ -1,5 +1,5 @@
 const database = require('../database')
-const { extractThreadTasksSinglePass } = require('../external/ollama')
+const { extractThreadTasks } = require('../external/ollama')
 const userModel = require('../models/user')
 
 module.exports = {
@@ -51,7 +51,7 @@ async function generateTasks (options) {
       messagesAnalyzed += thread.messageCount
 
       try {
-        const extractedTasks = await extractThreadTasksSinglePass({
+        const extractedTasks = await extractThreadTasks({
           thread: {
             threadId: thread.threadId,
             messageCount: thread.messageCount,
@@ -77,7 +77,7 @@ async function generateTasks (options) {
       messagesAnalyzed += 1
 
       try {
-        const extractedTasks = await extractThreadTasksSinglePass({
+        const extractedTasks = await extractThreadTasks({
           thread: {
             threadId: standalone.messageId,
             messageCount: 1,

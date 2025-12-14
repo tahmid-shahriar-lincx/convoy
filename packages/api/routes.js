@@ -1,6 +1,6 @@
 const model = require('./models')
 const slackApi = require('./external/slack-api')
-const { extractThreadTasksSinglePass } = require('./external/ollama')
+const { extractThreadTasks: extractTasksFromThread } = require('./external/ollama')
 const tokenService = require('./services/token-service')
 const statsService = require('./services/stats-service')
 const conversationService = require('./services/conversation-service')
@@ -537,7 +537,7 @@ async function extractThreadTasks (req, res) {
   }
 
   try {
-    const tasks = await extractThreadTasksSinglePass({
+    const tasks = await extractTasksFromThread({
       thread,
       ollamaUrl,
       model,
