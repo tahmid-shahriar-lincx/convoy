@@ -1,0 +1,36 @@
+{
+  "name": "@convoy/api",
+  "version": "1.0.0",
+  "description": "Convoy API server for generating and saving tasks from conversations",
+  "main": "server.js",
+  "scripts": {
+    "dev": "nodemon server.js",
+    "start": "node server.js",
+    "test": "node --test",
+    "lint": "standard .",
+    "lint:fix": "standard --fix",
+    "db:migrate": "node scripts/migrate.js",
+    "clean": "rm -rf convoy.db convoy.db-journal"
+  },
+  "keywords": [
+    "api",
+    "slack",
+    "conversation",
+    "tasks"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.13.2",
+    "better-sqlite3": "^12.5.0",
+    "express": "^5.2.1",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
+    "morgan": "^1.10.0",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.11",
+    "standard": "^17.1.2"
+  }
+}
