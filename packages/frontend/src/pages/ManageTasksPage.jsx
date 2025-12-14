@@ -62,7 +62,17 @@ function TaskCard ({ task, columnId }) {
         }
       }}
     >
-      <Typography variant='h6' sx={{ mb: 1, fontSize: '1rem', fontWeight: 600 }}>
+      <Typography
+        variant='h6'
+        sx={{
+          mb: 1,
+          fontSize: '1rem',
+          fontWeight: 600,
+          wordBreak: 'break-word',
+          overflowWrap: 'break-word',
+          whiteSpace: 'normal'
+        }}
+      >
         {task.task_title || '(untitled)'}
       </Typography>
 
