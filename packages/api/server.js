@@ -73,6 +73,7 @@ function startServer () {
   app.post('/api/tasks/pipeline/extract-thread', routes.extractThreadTasks)
   app.post('/api/tasks/pipeline/merge', routes.mergeTaskCandidates)
   app.get('/api/ollama/models', routes.getOllamaModels)
+  app.get('/api/openrouter/models', routes.getOpenRouterModels)
 
   app.get('/api/tasks', routes.getTasks)
   app.post('/api/tasks', routes.saveTask)
@@ -112,6 +113,7 @@ function startServer () {
     console.log('   POST /api/tasks - Save a task')
     console.log('   DELETE /api/tasks/:id - Delete a saved task')
     console.log('   GET  /api/ollama/models - Get available Ollama models')
+    console.log('   GET  /api/openrouter/models - Get available OpenRouter models')
   })
 }
 

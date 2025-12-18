@@ -1,6 +1,6 @@
 const model = require('./models')
 const slackApi = require('./external/slack-api')
-const { extractThreadTasks: extractTasksFromThread } = require('./external/ollama')
+const providerFactory = require('./external/provider-factory')
 const tokenService = require('./services/token-service')
 const statsService = require('./services/stats-service')
 const conversationService = require('./services/conversation-service')
@@ -49,6 +49,48 @@ async function getOllamaModels (req, res) {
   }
 }
 
+async function getOpenRouterModels (req, res) {
+  const { apiKey } = req.query
+
+  if (!apiKey) {
+    return res.status(400).json({
+      success: false,
+      error: 'OpenRouter API key is required'
+    })
+  }
+
+  try {
+    const axios = require('axios')
+    const url = 'https://openrouter.ai/api/v1/models'
+
+    const response = await axios.get(url, {
+      timeout: 10000,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`
+      }
+    })
+
+    const models = response.data.data || []
+    const modelNames = models
+      .map(m => m.id || m.name)
+      .filter(Boolean)
+      .filter((name, index, self) => self.indexOf(name) === index)
+
+    res.json({
+      success: true,
+      models: modelNames,
+      count: modelNames.length
+    })
+  } catch (error) {
+    console.error('❌ Error fetching OpenRouter models:', error.message)
+    res.status(500).json({
+      success: false,
+      error: error.response?.data?.error?.message || error.response?.data?.error || error.message || 'Failed to fetch models from OpenRouter'
+    })
+  }
+}
+
 module.exports = {
   getTokens,
   getStats,
@@ -71,6 +113,7 @@ module.exports = {
   updateTask,
   updateTaskKanban,
   getOllamaModels,
+  getOpenRouterModels,
   getPrompts,
   getPrompt,
   createPrompt,
@@ -443,7 +486,9 @@ async function generateTasks (req, res) {
     channelName,
     startDate,
     endDate,
+    provider = 'ollama',
     ollamaUrl,
+    apiKey,
     model,
     numCtx,
     systemPrompt,
@@ -454,10 +499,24 @@ async function generateTasks (req, res) {
     defaultSystemMessage
   } = req.body
 
-  if (!channelId || !channelName || !startDate || !endDate || !ollamaUrl || !model) {
+  if (!channelId || !channelName || !startDate || !endDate || !model) {
     return res.status(400).json({
       success: false,
-      error: 'Missing required parameters: channelId, channelName, startDate, endDate, ollamaUrl, model'
+      error: 'Missing required parameters: channelId, channelName, startDate, endDate, model'
+    })
+  }
+
+  if (provider === 'ollama' && !ollamaUrl) {
+    return res.status(400).json({
+      success: false,
+      error: 'Missing required parameter: ollamaUrl'
+    })
+  }
+
+  if (provider === 'openrouter' && !apiKey) {
+    return res.status(400).json({
+      success: false,
+      error: 'Missing required parameter: apiKey'
     })
   }
 
@@ -466,13 +525,16 @@ async function generateTasks (req, res) {
 
     console.log(`🧪 Generating task list (not saved) for channel: ${channelName}`)
     console.log(`📋 Threading: ${threadingMode}`)
+    console.log(`🔌 Provider: ${provider}`)
 
     const result = await taskGenerationService.generateTasks({
       channelId,
       channelName,
       startDate,
       endDate,
+      provider,
       ollamaUrl,
+      apiKey,
       model,
       numCtx,
       systemPrompt,
@@ -529,7 +591,9 @@ async function prepareTaskPipeline (req, res) {
 async function extractThreadTasks (req, res) {
   const {
     thread,
+    provider = 'ollama',
     ollamaUrl,
+    apiKey,
     model,
     numCtx,
     systemPrompt,
@@ -539,17 +603,31 @@ async function extractThreadTasks (req, res) {
     defaultSystemMessage
   } = req.body
 
-  if (!thread || !ollamaUrl || !model) {
+  if (!thread || !model) {
     return res.status(400).json({
       success: false,
-      error: 'Missing required parameters: thread, ollamaUrl, model'
+      error: 'Missing required parameters: thread, model'
+    })
+  }
+
+  if (provider === 'ollama' && !ollamaUrl) {
+    return res.status(400).json({
+      success: false,
+      error: 'Missing required parameter: ollamaUrl'
+    })
+  }
+
+  if (provider === 'openrouter' && !apiKey) {
+    return res.status(400).json({
+      success: false,
+      error: 'Missing required parameter: apiKey'
     })
   }
 
   try {
-    const tasks = await extractTasksFromThread({
+    const providerModule = providerFactory.getProvider(provider)
+    const extractOptions = {
       thread,
-      ollamaUrl,
       model,
       numCtx: Number.isFinite(numCtx) ? numCtx : null,
       systemPrompt,
@@ -557,7 +635,15 @@ async function extractThreadTasks (req, res) {
       promptTemplate,
       requiredGroundingRules,
       defaultSystemMessage
-    })
+    }
+
+    if (provider === 'ollama') {
+      extractOptions.ollamaUrl = ollamaUrl
+    } else if (provider === 'openrouter') {
+      extractOptions.apiKey = apiKey
+    }
+
+    const tasks = await providerModule.extractThreadTasks(extractOptions)
 
     res.json({
       success: true,

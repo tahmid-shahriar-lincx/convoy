@@ -1,5 +1,5 @@
 const database = require('../database')
-const { extractThreadTasks } = require('../external/ollama')
+const providerFactory = require('../external/provider-factory')
 const userModel = require('../models/user')
 
 module.exports = {
@@ -13,7 +13,9 @@ async function generateTasks (options) {
     channelName,
     startDate,
     endDate,
+    provider = 'ollama',
     ollamaUrl,
+    apiKey,
     model = 'gemma3:4b',
     numCtx = null,
     systemPrompt = null,
@@ -50,17 +52,18 @@ async function generateTasks (options) {
     const allTasks = []
     let messagesAnalyzed = 0
 
+    const providerModule = providerFactory.getProvider(provider)
+
     for (const thread of threadedData.threads) {
       messagesAnalyzed += thread.messageCount
 
       try {
-        const extractedTasks = await extractThreadTasks({
+        const extractOptions = {
           thread: {
             threadId: thread.threadId,
             messageCount: thread.messageCount,
             messages: thread.messages
           },
-          ollamaUrl,
           model,
           numCtx,
           systemPrompt,
@@ -68,7 +71,15 @@ async function generateTasks (options) {
           promptTemplate,
           requiredGroundingRules,
           defaultSystemMessage
-        })
+        }
+
+        if (provider === 'ollama') {
+          extractOptions.ollamaUrl = ollamaUrl
+        } else if (provider === 'openrouter') {
+          extractOptions.apiKey = apiKey
+        }
+
+        const extractedTasks = await providerModule.extractThreadTasks(extractOptions)
 
         allTasks.push(...extractedTasks.map(task => ({
           task_title: task.task_title,
@@ -83,7 +94,7 @@ async function generateTasks (options) {
       messagesAnalyzed += 1
 
       try {
-        const extractedTasks = await extractThreadTasks({
+        const extractOptions = {
           thread: {
             threadId: standalone.messageId,
             messageCount: 1,
@@ -95,7 +106,6 @@ async function generateTasks (options) {
               text: standalone.text
             }]
           },
-          ollamaUrl,
           model,
           numCtx,
           systemPrompt,
@@ -103,7 +113,15 @@ async function generateTasks (options) {
           promptTemplate,
           requiredGroundingRules,
           defaultSystemMessage
-        })
+        }
+
+        if (provider === 'ollama') {
+          extractOptions.ollamaUrl = ollamaUrl
+        } else if (provider === 'openrouter') {
+          extractOptions.apiKey = apiKey
+        }
+
+        const extractedTasks = await providerModule.extractThreadTasks(extractOptions)
 
         allTasks.push(...extractedTasks.map(task => ({
           task_title: task.task_title,
@@ -362,5 +380,3 @@ function prepareThreadedConversationData (threadedData, channelName, dateRange) 
     }
   }
 }
-
-

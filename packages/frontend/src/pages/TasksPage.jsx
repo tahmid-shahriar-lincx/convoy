@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { taskGenerationApi, ollamaApi, channelsApi, tasksApi, tokenApi, conversationsApi } from '../services/api'
+import { taskGenerationApi, ollamaApi, openrouterApi, channelsApi, tasksApi, tokenApi, conversationsApi } from '../services/api'
 import toast from 'react-hot-toast'
 import { format, subDays } from 'date-fns'
 import DateRangePicker from '../components/DateRangePicker'
@@ -37,10 +37,18 @@ const TasksPage = () => {
   const [contextWindow, setContextWindow] = useState(4096)
   const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT)
   const [examplesCriteria, setExamplesCriteria] = useState(DEFAULT_EXAMPLES_CRITERIA)
-  const [promptTemplate, setPromptTemplate] = useState(DEFAULT_PROMPT_TEMPLATE)
-  const [requiredGroundingRules, setRequiredGroundingRules] = useState(REQUIRED_GROUNDING_RULES)
-  const [defaultSystemMessage, setDefaultSystemMessage] = useState(DEFAULT_SYSTEM_MESSAGE_WITH_FORMAT)
+  const [promptTemplate] = useState(DEFAULT_PROMPT_TEMPLATE)
+  const [requiredGroundingRules] = useState(REQUIRED_GROUNDING_RULES)
+  const [defaultSystemMessage] = useState(DEFAULT_SYSTEM_MESSAGE_WITH_FORMAT)
+  const [provider, setProvider] = useState(() => {
+    const stored = globalThis.localStorage?.getItem('convoy-provider')
+    return stored || 'ollama'
+  })
   const [ollamaUrl, setOllamaUrl] = useState('http://localhost:11434')
+  const [openrouterApiKey, setOpenrouterApiKey] = useState(() => {
+    const stored = globalThis.localStorage?.getItem('convoy-openrouter-api-key')
+    return stored || ''
+  })
   const [selectedChannel, setSelectedChannel] = useState('')
   const [includeBotMessages] = useState(false)
   const [startDate, setStartDate] = useState(() => {
@@ -79,12 +87,20 @@ const TasksPage = () => {
     queryFn: () => tasksApi.getTasks({ limit: 200 })
   })
 
-  const { data: availableModels, isLoading: modelsLoading } = useQuery({
+  const { data: availableOllamaModels, isLoading: ollamaModelsLoading } = useQuery({
     queryKey: ['ollamaModels', ollamaUrl],
     queryFn: () => ollamaApi.getModels(ollamaUrl),
-    enabled: ollamaUrl.length > 0
+    enabled: provider === 'ollama' && ollamaUrl.length > 0
   })
 
+  const { data: availableOpenRouterModels, isLoading: openrouterModelsLoading } = useQuery({
+    queryKey: ['openrouterModels', openrouterApiKey],
+    queryFn: () => openrouterApi.getModels(openrouterApiKey),
+    enabled: provider === 'openrouter' && openrouterApiKey.length > 0
+  })
+
+  const availableModels = provider === 'ollama' ? availableOllamaModels : availableOpenRouterModels
+  const modelsLoading = provider === 'ollama' ? ollamaModelsLoading : openrouterModelsLoading
 
   const CONTEXT_WINDOW_MIN = 1024
   const CONTEXT_WINDOW_MAX = 128000
@@ -98,8 +114,27 @@ const TasksPage = () => {
   }
 
   useEffect(() => {
+    if (globalThis.localStorage) {
+      globalThis.localStorage.setItem('convoy-provider', provider)
+    }
+  }, [provider])
+
+  useEffect(() => {
+    if (globalThis.localStorage) {
+      if (openrouterApiKey) {
+        globalThis.localStorage.setItem('convoy-openrouter-api-key', openrouterApiKey)
+      } else {
+        globalThis.localStorage.removeItem('convoy-openrouter-api-key')
+      }
+    }
+  }, [openrouterApiKey])
+
+  useEffect(() => {
     const models = availableModels?.models || []
-    if (models.length === 0) return
+    if (models.length === 0) {
+      setSelectedModel('')
+      return
+    }
 
     if (!selectedModel) {
       setSelectedModel(models[0])
@@ -213,6 +248,14 @@ const TasksPage = () => {
       toast.error('Please select a model')
       return
     }
+    if (provider === 'ollama' && !ollamaUrl) {
+      toast.error('Please enter Ollama URL')
+      return
+    }
+    if (provider === 'openrouter' && !openrouterApiKey) {
+      toast.error('Please enter OpenRouter API key')
+      return
+    }
     if (!startDate || !endDate) {
       toast.error('Please select a date range')
       return
@@ -301,9 +344,9 @@ const TasksPage = () => {
         })
 
         const thread = items[i]
-        const extractRes = await taskGenerationApi.extractThread({
+        const extractPayload = {
           thread,
-          ollamaUrl,
+          provider,
           model: selectedModel,
           numCtx: Number.isFinite(contextWindow) ? contextWindow : undefined,
           systemPrompt,
@@ -311,7 +354,15 @@ const TasksPage = () => {
           promptTemplate,
           requiredGroundingRules,
           defaultSystemMessage
-        })
+        }
+
+        if (provider === 'ollama') {
+          extractPayload.ollamaUrl = ollamaUrl
+        } else if (provider === 'openrouter') {
+          extractPayload.apiKey = openrouterApiKey
+        }
+
+        const extractRes = await taskGenerationApi.extractThread(extractPayload)
 
         const tasks = Array.isArray(extractRes?.tasks) ? extractRes.tasks : []
         for (const t of tasks) candidates.push(t)
@@ -607,46 +658,85 @@ const TasksPage = () => {
             }}
           >
             <TextField
-              label='Ollama URL'
-              value={ollamaUrl}
-              onChange={(e) => setOllamaUrl(e.target.value)}
-              placeholder='http://localhost:11434'
-              required
-              fullWidth
-              sx={{ flex: '2 1 360px' }}
-            />
-
-            <TextField
               select
-              label='AI Model'
-              value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
+              label='Provider'
+              value={provider}
+              onChange={(e) => {
+                setProvider(e.target.value)
+                setSelectedModel('')
+              }}
               required
-              disabled={modelsLoading}
               fullWidth
-              sx={{ flex: '1 1 260px', minWidth: 260 }}
+              sx={{ flex: '1 1 200px', minWidth: 200 }}
             >
-              <MenuItem value=''>Select a model...</MenuItem>
-              {availableModels?.models?.map((model) => (
-                <MenuItem key={model} value={model}>
-                  {model}
-                </MenuItem>
-              ))}
+              <MenuItem value='ollama'>Ollama</MenuItem>
+              <MenuItem value='openrouter'>OpenRouter</MenuItem>
             </TextField>
 
-            <TextField
-              label='Context Window Size'
-              type='number'
-              value={contextWindow}
-              onChange={(e) => setContextWindow(sanitizeContextWindow(e.target.value))}
-              inputProps={{
-                min: CONTEXT_WINDOW_MIN,
-                max: CONTEXT_WINDOW_MAX,
-                step: CONTEXT_WINDOW_STEP
+            {provider === 'ollama' && (
+              <TextField
+                label='Ollama URL'
+                value={ollamaUrl}
+                onChange={(e) => setOllamaUrl(e.target.value)}
+                placeholder='http://localhost:11434'
+                required
+                fullWidth
+                sx={{ flex: '2 1 360px' }}
+              />
+            )}
+
+            {provider === 'openrouter' && (
+              <TextField
+                label='OpenRouter API Key'
+                type='password'
+                value={openrouterApiKey}
+                onChange={(e) => setOpenrouterApiKey(e.target.value)}
+                placeholder='sk-or-v1-...'
+                required
+                fullWidth
+                sx={{ flex: '2 1 360px' }}
+              />
+            )}
+
+            <Autocomplete
+              sx={{ flex: '1 1 260px', minWidth: 260 }}
+              options={availableModels?.models || []}
+              getOptionLabel={(option) => option}
+              value={selectedModel || null}
+              onChange={(event, newValue) => {
+                setSelectedModel(newValue || '')
               }}
-              fullWidth
-              sx={{ flex: '1 1 240px', minWidth: 240, maxWidth: 420 }}
+              disabled={modelsLoading}
+              loading={modelsLoading}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label='AI Model'
+                  required
+                  placeholder='Search models...'
+                />
+              )}
+              noOptionsText='No models found'
+              clearText='Clear'
+              openText='Open'
+              closeText='Close'
             />
+
+            {provider === 'ollama' && (
+              <TextField
+                label='Context Window Size'
+                type='number'
+                value={contextWindow}
+                onChange={(e) => setContextWindow(sanitizeContextWindow(e.target.value))}
+                inputProps={{
+                  min: CONTEXT_WINDOW_MIN,
+                  max: CONTEXT_WINDOW_MAX,
+                  step: CONTEXT_WINDOW_STEP
+                }}
+                fullWidth
+                sx={{ flex: '1 1 240px', minWidth: 240, maxWidth: 420 }}
+              />
+            )}
           </Box>
 
           {modelsLoading && (
@@ -752,11 +842,13 @@ const TasksPage = () => {
                   disabled={refreshChannelsMutation.isLoading}
                   size='small'
                 >
-                  {refreshChannelsMutation.isLoading ? (
-                    <CircularProgress size={18} />
-                  ) : (
-                    <RefreshIcon fontSize='small' />
-                  )}
+                  {refreshChannelsMutation.isLoading
+                    ? (
+                      <CircularProgress size={18} />
+                      )
+                    : (
+                      <RefreshIcon fontSize='small' />
+                      )}
                 </IconButton>
               </Tooltip>
               <Box sx={{ flex: 1.4, minWidth: 520 }}>
@@ -779,6 +871,8 @@ const TasksPage = () => {
                 pipelineStatus.step === 'syncing' ||
                 !selectedChannel ||
                 !selectedModel ||
+                (provider === 'ollama' && !ollamaUrl) ||
+                (provider === 'openrouter' && !openrouterApiKey) ||
                 !startDate ||
                 !endDate
               }
@@ -808,17 +902,19 @@ const TasksPage = () => {
               }
             >
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                {pipelineStatus.step === 'syncing' ? (
-                  <>
-                    <CircularProgress size={16} />
-                    Syncing...
-                  </>
-                ) : (
-                  <>
-                    <SyncIcon />
-                    Sync Only
-                  </>
-                )}
+                {pipelineStatus.step === 'syncing'
+                  ? (
+                    <>
+                      <CircularProgress size={16} />
+                      Syncing...
+                    </>
+                    )
+                  : (
+                    <>
+                      <SyncIcon />
+                      Sync Only
+                    </>
+                    )}
               </span>
             </button>
           </div>

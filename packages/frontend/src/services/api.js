@@ -92,6 +92,10 @@ export const ollamaApi = {
   getModels: (ollamaUrl) => api.get('/api/ollama/models', { params: { ollamaUrl } })
 }
 
+export const openrouterApi = {
+  getModels: (apiKey) => api.get('/api/openrouter/models', { params: { apiKey } })
+}
+
 export const promptsApi = {
   getPrompts: async (params) => {
     const response = await api.get('/api/prompts', { params })
