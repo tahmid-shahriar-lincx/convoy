@@ -17,7 +17,10 @@ async function generateTasks (options) {
     model = 'gemma3:4b',
     numCtx = null,
     systemPrompt = null,
-    examplesCriteria = null
+    examplesCriteria = null,
+    promptTemplate = null,
+    requiredGroundingRules = null,
+    defaultSystemMessage = null
   } = options
 
   try {
@@ -61,7 +64,10 @@ async function generateTasks (options) {
           model,
           numCtx,
           systemPrompt,
-          examplesCriteria
+          examplesCriteria,
+          promptTemplate,
+          requiredGroundingRules,
+          defaultSystemMessage
         })
 
         allTasks.push(...extractedTasks.map(task => ({
@@ -93,7 +99,10 @@ async function generateTasks (options) {
           model,
           numCtx,
           systemPrompt,
-          examplesCriteria
+          examplesCriteria,
+          promptTemplate,
+          requiredGroundingRules,
+          defaultSystemMessage
         })
 
         allTasks.push(...extractedTasks.map(task => ({

@@ -1,6 +1,48 @@
 export const DEFAULT_SYSTEM_PROMPT =
   'You are a task extraction assistant. Extract and return tasks in the specified JSON format.'
 
+export const DEFAULT_PROMPT_TEMPLATE = `Extract actionable tasks from this single Slack thread. Return a JSON array matching this schema:
+
+\${schemaDescription}
+
+IMPORTANT:
+- Only return tasks that are explicitly supported by the thread text.
+- If there is no clear actionable work request, return [].
+- If there is an explicit request but key details are missing, you may return an "Investigate X" task,
+  but it must still be grounded in the thread text and reuse the thread's nouns/entities.
+- Prefer concrete, grounded titles that reuse key nouns from the thread.
+- task_title should be as specific as the thread allows (but don't return []
+  just because the title can't be perfect).
+- task_description MUST be a short narrative summary (1-4 sentences).
+  It should summarize what happened in the thread and the intended outcome/next action.
+  DO NOT include acceptance-criteria templates, bullet lists, or embedded quotes.
+
+\${examplesCriteria}
+
+Thread (JSON):
+\${threadJson}`
+
+export const REQUIRED_GROUNDING_RULES = `NON-NEGOTIABLE RULES:
+- Use ONLY the provided conversation/thread text.
+- Do NOT use outside knowledge.
+- Do NOT invent tasks or context.
+- Only return tasks that are explicitly supported by the text.
+- If there is no clear actionable work, return [] in the requested JSON format.
+`
+
+export const DEFAULT_SYSTEM_MESSAGE_WITH_FORMAT = 'You are a task extraction assistant. Use ONLY the provided text. Do NOT invent tasks. Return tasks strictly in the specified JSON format.'
+
+export const DEFAULT_SYSTEM_MESSAGE_WITHOUT_FORMAT = 'You are a task extraction assistant. Return tasks as a JSON array.'
+
+export const DEFAULT_SYSTEM_MESSAGE = DEFAULT_SYSTEM_MESSAGE_WITH_FORMAT
+
+export const DEFAULT_PROMPT_TEMPLATE_FOR_DB = `Extract ALL actionable tasks from this conversation. Return a JSON array matching this schema:
+
+\${schemaDescription}
+
+Conversation:
+\${conversationText}`
+
 export const DEFAULT_EXAMPLES_CRITERIA = `OUTPUT QUALITY (CRITICAL):
 - task_title MUST name the specific component/feature/area + the action.
 - NEVER use vague titles like "Fix bug", "Update validation logic", "Check issue".

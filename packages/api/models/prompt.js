@@ -108,7 +108,7 @@ function setDefaultPrompt (id) {
   return setDefault.run(id)
 }
 
-function initializeDefaultPrompts () {
+function initializeDefaultPrompts (promptTemplate = null) {
   const db = database.initialize()
 
   const existingDefault = getDefaultPrompt()
@@ -117,7 +117,7 @@ function initializeDefaultPrompts () {
     return
   }
 
-  const defaultPromptTemplate = `Extract ALL actionable tasks from this conversation. Return a JSON array matching this schema:
+  const defaultPromptTemplate = promptTemplate || `Extract ALL actionable tasks from this conversation. Return a JSON array matching this schema:
 
 \${schemaDescription}
 

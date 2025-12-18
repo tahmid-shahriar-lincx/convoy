@@ -20,8 +20,6 @@ const THREAD_TASK_ARRAY_SCHEMA = {
   items: THREAD_TASK_SCHEMA
 }
 
-const DEFAULT_EXAMPLES_CRITERIA = ''
-
 const DEFAULT_PROMPT_TEMPLATE = `Extract actionable tasks from this single Slack thread. Return a JSON array matching this schema:
 
 \${schemaDescription}
@@ -101,7 +99,10 @@ async function extractThreadTasks (options) {
     model,
     numCtx = null,
     systemPrompt = null,
-    examplesCriteria = null
+    examplesCriteria = null,
+    promptTemplate = null,
+    requiredGroundingRules = null,
+    defaultSystemMessage = null
   } = options
 
   const threadId = (thread?.threadId || '').toString()
@@ -123,9 +124,14 @@ async function extractThreadTasks (options) {
   const examplesCriteriaText = typeof examplesCriteria === 'string' &&
     examplesCriteria.trim().length > 0
     ? examplesCriteria
-    : DEFAULT_EXAMPLES_CRITERIA
+    : ''
 
-  const prompt = DEFAULT_PROMPT_TEMPLATE
+  const templateToUse = typeof promptTemplate === 'string' &&
+    promptTemplate.trim().length > 0
+    ? promptTemplate
+    : DEFAULT_PROMPT_TEMPLATE
+
+  const prompt = templateToUse
     .replace(/\${schemaDescription}/g, schemaDescription)
     .replace(/\${examplesCriteria}/g, examplesCriteriaText)
     .replace(/\${threadJson}/g, JSON.stringify(safeThread, null, 2))
@@ -139,7 +145,9 @@ async function extractThreadTasks (options) {
     passName: 'Thread Extraction',
     format: THREAD_TASK_ARRAY_SCHEMA,
     numCtx,
-    systemPrompt
+    systemPrompt,
+    requiredGroundingRules,
+    defaultSystemMessage
   })
 
   const tasks = parseTasksFromResponse(response)
@@ -229,7 +237,9 @@ async function callOllamaAPI (options) {
     passName,
     format = null,
     numCtx = null,
-    systemPrompt = null
+    systemPrompt = null,
+    requiredGroundingRules = null,
+    defaultSystemMessage = null
   } = options
 
   const chatUrl = ollamaUrl.startsWith('http://') ||
@@ -250,21 +260,26 @@ async function callOllamaAPI (options) {
   writeToLogFile(requestLog)
 
   try {
-    const requiredGroundingRules =
-      'NON-NEGOTIABLE RULES:\n' +
-      '- Use ONLY the provided conversation/thread text.\n' +
-      '- Do NOT use outside knowledge.\n' +
-      '- Do NOT invent tasks or context.\n' +
-      '- Only return tasks that are explicitly supported by the text.\n' +
-      '- If there is no clear actionable work, return [] in the requested JSON format.\n'
-    const defaultSystemMessage = format
-      ? 'You are a task extraction assistant. Use ONLY the provided text. Do NOT invent tasks. Return tasks strictly in the specified JSON format.'
-      : 'You are a task extraction assistant. Return tasks as a JSON array.'
+    const groundingRulesToUse = typeof requiredGroundingRules === 'string' &&
+      requiredGroundingRules.trim().length > 0
+      ? requiredGroundingRules
+      : 'NON-NEGOTIABLE RULES:\n' +
+        '- Use ONLY the provided conversation/thread text.\n' +
+        '- Do NOT use outside knowledge.\n' +
+        '- Do NOT invent tasks or context.\n' +
+        '- Only return tasks that are explicitly supported by the text.\n' +
+        '- If there is no clear actionable work, return [] in the requested JSON format.\n'
+    const defaultSystemMsg = typeof defaultSystemMessage === 'string' &&
+      defaultSystemMessage.trim().length > 0
+      ? defaultSystemMessage
+      : format
+        ? 'You are a task extraction assistant. Use ONLY the provided text. Do NOT invent tasks. Return tasks strictly in the specified JSON format.'
+        : 'You are a task extraction assistant. Return tasks as a JSON array.'
     const userSystem = typeof systemPrompt === 'string' &&
       systemPrompt.trim().length > 0
       ? systemPrompt
-      : defaultSystemMessage
-    const systemMessage = `${requiredGroundingRules}\n${userSystem}`.trim()
+      : defaultSystemMsg
+    const systemMessage = `${groundingRulesToUse}\n${userSystem}`.trim()
     const userPrompt = prompt
     writeToLogFile(
       `   System prompt: ${systemMessage.replace(/\s+/g, ' ').substring(0, 120)}`

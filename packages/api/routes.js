@@ -448,7 +448,10 @@ async function generateTasks (req, res) {
     numCtx,
     systemPrompt,
     examplesCriteria,
-    useThreading
+    useThreading,
+    promptTemplate,
+    requiredGroundingRules,
+    defaultSystemMessage
   } = req.body
 
   if (!channelId || !channelName || !startDate || !endDate || !ollamaUrl || !model) {
@@ -474,7 +477,10 @@ async function generateTasks (req, res) {
       numCtx,
       systemPrompt,
       examplesCriteria,
-      useThreading: useThreading !== false
+      useThreading: useThreading !== false,
+      promptTemplate,
+      requiredGroundingRules,
+      defaultSystemMessage
     })
 
     res.json(result)
@@ -527,7 +533,10 @@ async function extractThreadTasks (req, res) {
     model,
     numCtx,
     systemPrompt,
-    examplesCriteria
+    examplesCriteria,
+    promptTemplate,
+    requiredGroundingRules,
+    defaultSystemMessage
   } = req.body
 
   if (!thread || !ollamaUrl || !model) {
@@ -544,7 +553,10 @@ async function extractThreadTasks (req, res) {
       model,
       numCtx: Number.isFinite(numCtx) ? numCtx : null,
       systemPrompt,
-      examplesCriteria
+      examplesCriteria,
+      promptTemplate,
+      requiredGroundingRules,
+      defaultSystemMessage
     })
 
     res.json({

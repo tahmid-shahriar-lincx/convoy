@@ -4,7 +4,13 @@ import { taskGenerationApi, ollamaApi, channelsApi, tasksApi, tokenApi, conversa
 import toast from 'react-hot-toast'
 import { format, subDays } from 'date-fns'
 import DateRangePicker from '../components/DateRangePicker'
-import { DEFAULT_EXAMPLES_CRITERIA, DEFAULT_SYSTEM_PROMPT } from '../prompts/taskPrompts'
+import {
+  DEFAULT_EXAMPLES_CRITERIA,
+  DEFAULT_SYSTEM_PROMPT,
+  DEFAULT_PROMPT_TEMPLATE,
+  REQUIRED_GROUNDING_RULES,
+  DEFAULT_SYSTEM_MESSAGE_WITH_FORMAT
+} from '../prompts/taskPrompts'
 import { DataGrid, GridActionsCellItem } from '@mui/x-data-grid'
 import {
   TextField,
@@ -31,6 +37,9 @@ const TasksPage = () => {
   const [contextWindow, setContextWindow] = useState(4096)
   const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT)
   const [examplesCriteria, setExamplesCriteria] = useState(DEFAULT_EXAMPLES_CRITERIA)
+  const [promptTemplate, setPromptTemplate] = useState(DEFAULT_PROMPT_TEMPLATE)
+  const [requiredGroundingRules, setRequiredGroundingRules] = useState(REQUIRED_GROUNDING_RULES)
+  const [defaultSystemMessage, setDefaultSystemMessage] = useState(DEFAULT_SYSTEM_MESSAGE_WITH_FORMAT)
   const [ollamaUrl, setOllamaUrl] = useState('http://localhost:11434')
   const [selectedChannel, setSelectedChannel] = useState('')
   const [includeBotMessages] = useState(false)
@@ -298,7 +307,10 @@ const TasksPage = () => {
           model: selectedModel,
           numCtx: Number.isFinite(contextWindow) ? contextWindow : undefined,
           systemPrompt,
-          examplesCriteria
+          examplesCriteria,
+          promptTemplate,
+          requiredGroundingRules,
+          defaultSystemMessage
         })
 
         const tasks = Array.isArray(extractRes?.tasks) ? extractRes.tasks : []
