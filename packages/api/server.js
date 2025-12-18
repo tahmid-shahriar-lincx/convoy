@@ -76,6 +76,7 @@ function startServer () {
 
   app.get('/api/tasks', routes.getTasks)
   app.post('/api/tasks', routes.saveTask)
+  app.put('/api/tasks/:taskId', routes.updateTask)
   app.delete('/api/tasks/:taskId', routes.deleteTask)
   app.put('/api/tasks/:taskId/kanban', routes.updateTaskKanban)
 

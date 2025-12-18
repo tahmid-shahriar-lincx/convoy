@@ -1,7 +1,23 @@
 import React, { useMemo, useRef, useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Box, Typography, Chip, Paper } from '@mui/material'
+import {
+  Box,
+  Typography,
+  Chip,
+  Paper,
+  Dialog,
+  AppBar,
+  Toolbar,
+  IconButton,
+  Button,
+  TextField,
+  Container,
+  Slide,
+  DialogContent
+} from '@mui/material'
+import CloseIcon from '@mui/icons-material/Close'
+import DeleteIcon from '@mui/icons-material/Delete'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import {
   draggable,
@@ -11,13 +27,17 @@ import invariant from 'tiny-invariant'
 
 import { tasksApi } from '../services/api'
 
+const Transition = React.forwardRef(function Transition (props, ref) {
+  return <Slide direction='up' ref={ref} {...props} />
+})
+
 const COLUMN_DEFS = [
   { id: 'todo', title: 'Todo' },
   { id: 'doing', title: 'Doing' },
   { id: 'done', title: 'Done' }
 ]
 
-function TaskCard ({ task, columnId }) {
+function TaskCard ({ task, columnId, onClick }) {
   const ref = useRef(null)
   const [isDragging, setIsDragging] = useState(false)
 
@@ -47,18 +67,16 @@ function TaskCard ({ task, columnId }) {
     <Paper
       ref={ref}
       elevation={isDragging ? 8 : 2}
+      onClick={() => onClick(task)}
       sx={{
         p: 2,
         mb: 2,
-        cursor: 'grab',
+        cursor: 'pointer',
         opacity: isDragging ? 0.5 : 1,
         transition: 'all 0.2s ease',
         '&:hover': {
           transform: 'translateY(-2px)',
           boxShadow: 4
-        },
-        '&:active': {
-          cursor: 'grabbing'
         }
       }}
     >
@@ -70,14 +88,28 @@ function TaskCard ({ task, columnId }) {
           fontWeight: 600,
           wordBreak: 'break-word',
           overflowWrap: 'break-word',
-          whiteSpace: 'normal'
+          whiteSpace: 'normal',
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden'
         }}
       >
         {task.task_title || '(untitled)'}
       </Typography>
 
       {task.task_description && (
-        <Typography variant='body2' sx={{ mb: 2, color: 'text.secondary' }}>
+        <Typography
+          variant='body2'
+          sx={{
+            mb: 2,
+            color: 'text.secondary',
+            display: '-webkit-box',
+            WebkitLineClamp: 3,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden'
+          }}
+        >
           {task.task_description}
         </Typography>
       )}
@@ -95,6 +127,7 @@ function TaskCard ({ task, columnId }) {
             href={slackLink}
             target='_blank'
             rel='noreferrer'
+            onClick={(e) => e.stopPropagation()}
             clickable
           />
         )}
@@ -103,7 +136,7 @@ function TaskCard ({ task, columnId }) {
   )
 }
 
-function TaskColumn ({ column, tasks, onDrop }) {
+function TaskColumn ({ column, tasks, onDrop, onTaskClick }) {
   const ref = useRef(null)
   const [isDraggedOver, setIsDraggedOver] = useState(false)
 
@@ -159,6 +192,7 @@ function TaskColumn ({ column, tasks, onDrop }) {
           key={task.id}
           task={task}
           columnId={column.id}
+          onClick={onTaskClick}
         />
       ))}
       {tasks.length === 0 && (
@@ -170,8 +204,115 @@ function TaskColumn ({ column, tasks, onDrop }) {
   )
 }
 
+function TaskEditModal ({ task, open, onClose, onSave, onDelete }) {
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+
+  useEffect(() => {
+    if (task) {
+      setTitle(task.task_title || '')
+      setDescription(task.task_description || '')
+    }
+  }, [task])
+
+  const handleSave = () => {
+    onSave(task.id, { task_title: title, task_description: description })
+  }
+
+  const handleDelete = () => {
+    if (window.confirm('Are you sure you want to delete this task?')) {
+      onDelete(task.id)
+    }
+  }
+
+  if (!task) return null
+
+  return (
+    <Dialog
+      fullScreen
+      open={open}
+      onClose={onClose}
+      TransitionComponent={Transition}
+    >
+      <AppBar sx={{ position: 'relative' }}>
+        <Toolbar>
+          <IconButton
+            edge='start'
+            color='inherit'
+            onClick={onClose}
+            aria-label='close'
+          >
+            <CloseIcon />
+          </IconButton>
+          <Typography sx={{ ml: 2, flex: 1 }} variant='h6' component='div'>
+            Edit Task
+          </Typography>
+          <Button autoFocus color='inherit' onClick={handleSave}>
+            Save
+          </Button>
+        </Toolbar>
+      </AppBar>
+      <DialogContent sx={{ p: 4 }}>
+        <Container maxWidth='md'>
+          <Box sx={{ py: 2, display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <TextField
+              label='Task Title'
+              fullWidth
+              variant='outlined'
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder='Enter task title...'
+              InputLabelProps={{ shrink: true }}
+            />
+            <TextField
+              label='Task Description'
+              fullWidth
+              multiline
+              rows={15}
+              variant='outlined'
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder='Enter detailed task description...'
+              InputLabelProps={{ shrink: true }}
+            />
+
+            <Box sx={{ mt: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                {task.channel_name && (
+                  <Chip label={`Channel: ${task.channel_name}`} variant='outlined' />
+                )}
+                {task.parent_thread_slack_link && (
+                  <Button
+                    size='small'
+                    startIcon={<OpenInNewIcon />}
+                    component='a'
+                    href={task.parent_thread_slack_link}
+                    target='_blank'
+                    rel='noreferrer'
+                  >
+                    View on Slack
+                  </Button>
+                )}
+              </Box>
+              <Button
+                color='error'
+                variant='outlined'
+                startIcon={<DeleteIcon />}
+                onClick={handleDelete}
+              >
+                Delete Task
+              </Button>
+            </Box>
+          </Box>
+        </Container>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 function ManageTasksPage () {
   const queryClient = useQueryClient()
+  const [selectedTask, setSelectedTask] = useState(null)
 
   const { data: savedTasks, isLoading } = useQuery({
     queryKey: ['savedTasks'],
@@ -187,6 +328,30 @@ function ManageTasksPage () {
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['savedTasks'])
+    }
+  })
+
+  const updateTaskMutation = useMutation({
+    mutationFn: ({ taskId, data }) => tasksApi.updateTask(taskId, data),
+    onSuccess: () => {
+      toast.success('Task updated successfully')
+      queryClient.invalidateQueries(['savedTasks'])
+      setSelectedTask(null)
+    },
+    onError: (error) => {
+      toast.error(`Failed to update task: ${error.message}`)
+    }
+  })
+
+  const deleteTaskMutation = useMutation({
+    mutationFn: (taskId) => tasksApi.deleteTask(taskId),
+    onSuccess: () => {
+      toast.success('Task deleted successfully')
+      queryClient.invalidateQueries(['savedTasks'])
+      setSelectedTask(null)
+    },
+    onError: (error) => {
+      toast.error(`Failed to delete task: ${error.message}`)
     }
   })
 
@@ -233,6 +398,18 @@ function ManageTasksPage () {
     })
   }
 
+  const handleTaskClick = (task) => {
+    setSelectedTask(task)
+  }
+
+  const handleSaveTask = (taskId, data) => {
+    updateTaskMutation.mutate({ taskId, data })
+  }
+
+  const handleDeleteTask = (taskId) => {
+    deleteTaskMutation.mutate(taskId)
+  }
+
   return (
     <div className='container'>
       <h1>Manage Tasks</h1>
@@ -268,12 +445,21 @@ function ManageTasksPage () {
                       column={column}
                       tasks={tasksByColumn.get(column.id) || []}
                       onDrop={handleDrop}
+                      onTaskClick={handleTaskClick}
                     />
                   ))}
                 </Box>
                 )}
           </Box>
           )}
+
+      <TaskEditModal
+        task={selectedTask}
+        open={Boolean(selectedTask)}
+        onClose={() => setSelectedTask(null)}
+        onSave={handleSaveTask}
+        onDelete={handleDeleteTask}
+      />
     </div>
   )
 }

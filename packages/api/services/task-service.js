@@ -4,6 +4,7 @@ module.exports = {
   listTasks,
   saveTask,
   deleteTask,
+  updateTask,
   updateTaskKanban,
   getTaskCount,
   getLastTaskSavedDate
@@ -19,6 +20,10 @@ function saveTask (taskData) {
 
 function deleteTask (taskId) {
   return taskModel.deleteTask(taskId)
+}
+
+function updateTask (taskId, taskData) {
+  return taskModel.updateTask(taskId, taskData)
 }
 
 function updateTaskKanban (taskId, kanbanData) {

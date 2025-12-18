@@ -84,6 +84,7 @@ export const tasksApi = {
   },
   saveTask: (data) => api.post('/api/tasks', data),
   deleteTask: (taskId) => api.delete(`/api/tasks/${taskId}`),
+  updateTask: (taskId, data) => api.put(`/api/tasks/${taskId}`, data),
   updateTaskKanban: (taskId, data) => api.put(`/api/tasks/${taskId}/kanban`, data)
 }
 

@@ -68,6 +68,7 @@ module.exports = {
   saveTask,
   getTasks,
   deleteTask,
+  updateTask,
   updateTaskKanban,
   getOllamaModels,
   getPrompts,
@@ -678,6 +679,40 @@ function deleteTask (req, res) {
     })
   } catch (error) {
     console.error('❌ Error deleting task:', error.message)
+    res.status(500).json({
+      success: false,
+      error: error.message
+    })
+  }
+}
+
+function updateTask (req, res) {
+  const { taskId } = req.params
+  const { task_title: taskTitle, task_description: taskDescription } = req.body
+
+  if (!taskId) {
+    return res.status(400).json({
+      success: false,
+      error: 'Task ID is required'
+    })
+  }
+
+  try {
+    const result = taskService.updateTask(taskId, {
+      taskTitle,
+      taskDescription
+    })
+
+    if (!result.success) {
+      return res.status(404).json({
+        success: false,
+        error: result.error || 'Task not found'
+      })
+    }
+
+    res.json(result)
+  } catch (error) {
+    console.error('❌ Error updating task:', error.message)
     res.status(500).json({
       success: false,
       error: error.message

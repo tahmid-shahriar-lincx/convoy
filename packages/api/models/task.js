@@ -5,6 +5,7 @@ module.exports = {
   saveTask,
   getTasks,
   deleteTask,
+  updateTask,
   updateTaskKanban,
   getTaskCount,
   getLastTaskSavedDate
@@ -165,6 +166,38 @@ function deleteTask (taskId) {
   return {
     success: result.changes > 0,
     taskId
+  }
+}
+
+function updateTask (taskId, taskData = {}) {
+  const db = database.initialize()
+  const { taskTitle, taskDescription } = taskData
+
+  const id = parseInt(taskId, 10)
+  if (!Number.isFinite(id)) throw new Error('Task ID must be a number')
+
+  const stmt = db.prepare(`
+    UPDATE saved_tasks
+    SET task_title = COALESCE(?, task_title),
+        task_description = COALESCE(?, task_description)
+    WHERE id = ?
+  `)
+
+  const result = stmt.run(
+    taskTitle !== undefined ? taskTitle.toString().trim() : null,
+    taskDescription !== undefined ? taskDescription.toString() : null,
+    id
+  )
+
+  if (result.changes === 0) {
+    return { success: false, error: 'Task not found' }
+  }
+
+  const updatedTask = db.prepare('SELECT * FROM saved_tasks WHERE id = ?').get(id)
+
+  return {
+    success: true,
+    task: updatedTask
   }
 }
 
