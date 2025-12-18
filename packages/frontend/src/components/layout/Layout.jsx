@@ -31,7 +31,14 @@ const Layout = ({ children }) => {
           </div>
         </div>
       </nav>
-      <main className='main'>
+      <main
+        className='main'
+        style={
+          location.pathname === '/manage-tasks'
+            ? { maxWidth: 'none', padding: 0 }
+            : {}
+        }
+      >
         {children}
       </main>
     </>

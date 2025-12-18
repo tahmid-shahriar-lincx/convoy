@@ -34,7 +34,8 @@ const Transition = React.forwardRef(function Transition (props, ref) {
 const COLUMN_DEFS = [
   { id: 'todo', title: 'Todo' },
   { id: 'doing', title: 'Doing' },
-  { id: 'done', title: 'Done' }
+  { id: 'done', title: 'Done' },
+  { id: 'icebox', title: 'Icebox' }
 ]
 
 function TaskCard ({ task, columnId, onClick }) {
@@ -411,21 +412,33 @@ function ManageTasksPage () {
   }
 
   return (
-    <div className='container'>
-      <h1>Manage Tasks</h1>
-      <p className='mb-3'>Organize your saved tasks by status</p>
+    <Box
+      sx={{
+        width: '100%',
+        maxWidth: 'none',
+        p: 1.5
+      }}
+    >
+      <Box sx={{ px: 2, mb: 2 }}>
+        <Typography variant='h4' component='h1' sx={{ mb: 1, color: 'text.primary' }}>
+          Manage Tasks
+        </Typography>
+        <Typography variant='body2' sx={{ color: 'text.secondary' }}>
+          Organize your saved tasks by status
+        </Typography>
+      </Box>
 
       {isLoading
         ? (
-          <div className='loading-dock'>
-            <p>Loading tasks...</p>
-          </div>
+          <Box sx={{ p: 2 }}>
+            <Typography variant='body1'>Loading tasks...</Typography>
+          </Box>
           )
         : (
-          <Box sx={{ width: '100%' }}>
+          <Box sx={{ width: '100%', px: 1 }}>
             {(!normalizedTasks || normalizedTasks.length === 0)
               ? (
-                <Typography variant='body1'>
+                <Typography variant='body1' sx={{ px: 2 }}>
                   No saved tasks yet. Generate tasks on the Tasks page, then save
                   the ones you want.
                 </Typography>
@@ -434,7 +447,7 @@ function ManageTasksPage () {
                 <Box
                   sx={{
                     display: 'flex',
-                    gap: 3,
+                    gap: 1,
                     flexWrap: 'wrap',
                     justifyContent: 'flex-start'
                   }}
@@ -460,7 +473,7 @@ function ManageTasksPage () {
         onSave={handleSaveTask}
         onDelete={handleDeleteTask}
       />
-    </div>
+    </Box>
   )
 }
 

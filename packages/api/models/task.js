@@ -205,7 +205,7 @@ function updateTaskKanban (taskId, kanbanData = {}) {
   const db = database.initialize()
   const { columnId, position } = kanbanData
 
-  const allowedColumns = new Set(['todo', 'doing', 'done'])
+  const allowedColumns = new Set(['todo', 'doing', 'done', 'icebox'])
   if (!allowedColumns.has(columnId)) {
     throw new Error('Invalid kanban column')
   }
