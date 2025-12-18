@@ -5,7 +5,6 @@ import { Toaster } from 'react-hot-toast'
 import Layout from './components/layout/Layout'
 import Dashboard from './pages/Dashboard'
 import TokenPage from './pages/TokenPage'
-import ConversationsPage from './pages/ConversationsPage'
 import TasksPage from './pages/TasksPage'
 import ManageTasksPage from './pages/ManageTasksPage'
 import ThemeProvider from './theme/ThemeProvider'
@@ -29,7 +28,6 @@ function App () {
             <Routes>
               <Route path='/' element={<Dashboard />} />
               <Route path='/tokens' element={<TokenPage />} />
-              <Route path='/conversations' element={<ConversationsPage />} />
               <Route path='/tasks' element={<TasksPage />} />
               <Route path='/manage-tasks' element={<ManageTasksPage />} />
             </Routes>

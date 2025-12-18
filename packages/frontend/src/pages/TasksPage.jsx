@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { taskGenerationApi, ollamaApi, channelsApi, tasksApi, tokenApi } from '../services/api'
+import { taskGenerationApi, ollamaApi, channelsApi, tasksApi, tokenApi, conversationsApi } from '../services/api'
 import toast from 'react-hot-toast'
 import { format, subDays } from 'date-fns'
 import DateRangePicker from '../components/DateRangePicker'
@@ -23,6 +23,8 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import SaveIcon from '@mui/icons-material/Save'
 import DeleteIcon from '@mui/icons-material/Delete'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
+import RefreshIcon from '@mui/icons-material/Refresh'
+import SyncIcon from '@mui/icons-material/Sync'
 
 const TasksPage = () => {
   const [selectedModel, setSelectedModel] = useState('')
@@ -31,6 +33,7 @@ const TasksPage = () => {
   const [examplesCriteria, setExamplesCriteria] = useState(DEFAULT_EXAMPLES_CRITERIA)
   const [ollamaUrl, setOllamaUrl] = useState('http://localhost:11434')
   const [selectedChannel, setSelectedChannel] = useState('')
+  const [includeBotMessages] = useState(false)
   const [startDate, setStartDate] = useState(() => {
     const today = new Date()
     const thirtyDaysAgo = subDays(today, 30)
@@ -73,7 +76,7 @@ const TasksPage = () => {
     enabled: ollamaUrl.length > 0
   })
 
-  const isGenerating = pipelineStatus.step !== 'idle'
+
   const CONTEXT_WINDOW_MIN = 1024
   const CONTEXT_WINDOW_MAX = 128000
   const CONTEXT_WINDOW_STEP = 1024
@@ -122,7 +125,75 @@ const TasksPage = () => {
     }
   })
 
-  const handleGenerateTasks = (e) => {
+  const refreshChannelsMutation = useMutation({
+    mutationFn: channelsApi.refreshChannels,
+    onSuccess: () => {
+      toast.success('Channels refreshed!')
+      queryClient.invalidateQueries(['channels'])
+    },
+    onError: (error) => {
+      toast.error(`Failed to refresh channels: ${error.message}`)
+    }
+  })
+
+  const syncConversationsMutation = useMutation({
+    mutationFn: conversationsApi.syncConversations,
+    onSuccess: (data) => {
+      const message = data?.message || `Synced ${data?.messagesSynced || 0} messages`
+      toast.success(message)
+      queryClient.invalidateQueries(['conversations'])
+    },
+    onError: (error) => {
+      toast.error(`Failed to sync conversations: ${error.message}`)
+    }
+  })
+
+  const isGenerating = pipelineStatus.step !== 'idle' && pipelineStatus.step !== 'syncing'
+
+  const handleSyncOnly = async () => {
+    const channel = (channels || []).find(c => c.id === selectedChannel) || null
+    if (!channel) {
+      toast.error('Please select a channel')
+      return
+    }
+    if (!startDate || !endDate) {
+      toast.error('Please select a date range')
+      return
+    }
+
+    try {
+      setPipelineStatus({
+        step: 'syncing',
+        message: 'Syncing conversations...',
+        currentThread: 0,
+        totalThreads: 0
+      })
+
+      await syncConversationsMutation.mutateAsync({
+        channelId: channel.id,
+        channelName: channel.display_name || channel.name || channel.id,
+        startDate,
+        endDate,
+        includeBotMessages
+      })
+
+      setPipelineStatus({
+        step: 'idle',
+        message: '',
+        currentThread: 0,
+        totalThreads: 0
+      })
+    } catch (error) {
+      setPipelineStatus({
+        step: 'idle',
+        message: '',
+        currentThread: 0,
+        totalThreads: 0
+      })
+    }
+  }
+
+  const handleGenerateTasks = async (e) => {
     e.preventDefault()
     const channel = (channels || []).find(c => c.id === selectedChannel) || null
     if (!channel) {
@@ -138,10 +209,28 @@ const TasksPage = () => {
       return
     }
 
-    runPipeline({
-      channelId: channel.id,
-      channelName: channel.display_name || channel.name || channel.id
-    }).catch(() => {})
+    try {
+      setPipelineStatus({
+        step: 'syncing',
+        message: 'Syncing conversations...',
+        currentThread: 0,
+        totalThreads: 0
+      })
+
+      await syncConversationsMutation.mutateAsync({
+        channelId: channel.id,
+        channelName: channel.display_name || channel.name || channel.id,
+        startDate,
+        endDate,
+        includeBotMessages
+      })
+
+      await runPipeline({
+        channelId: channel.id,
+        channelName: channel.display_name || channel.name || channel.id
+      })
+    } catch (error) {
+    }
   }
 
   const runPipeline = async ({ channelId, channelName }) => {
@@ -628,6 +717,15 @@ const TasksPage = () => {
                     {...params}
                     size='small'
                     placeholder='Search channels...'
+                    InputProps={{
+                      ...params.InputProps,
+                      startAdornment: (
+                        <>
+                          <Typography sx={{ mr: 1, color: 'text.secondary' }}>#</Typography>
+                          {params.InputProps.startAdornment}
+                        </>
+                      )
+                    }}
                   />
                 )}
                 loading={channelsLoading}
@@ -636,6 +734,19 @@ const TasksPage = () => {
                 openText='Open'
                 closeText='Close'
               />
+              <Tooltip title='Refresh channels'>
+                <IconButton
+                  onClick={() => refreshChannelsMutation.mutate()}
+                  disabled={refreshChannelsMutation.isLoading}
+                  size='small'
+                >
+                  {refreshChannelsMutation.isLoading ? (
+                    <CircularProgress size={18} />
+                  ) : (
+                    <RefreshIcon fontSize='small' />
+                  )}
+                </IconButton>
+              </Tooltip>
               <Box sx={{ flex: 1.4, minWidth: 520 }}>
                 <DateRangePicker
                   startDate={startDate}
@@ -653,6 +764,7 @@ const TasksPage = () => {
               className='btn'
               disabled={
                 isGenerating ||
+                pipelineStatus.step === 'syncing' ||
                 !selectedChannel ||
                 !selectedModel ||
                 !startDate ||
@@ -664,12 +776,38 @@ const TasksPage = () => {
                 ? (
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                     <CircularProgress size={16} />
-                    {pipelineStatus.message || 'Generating...'}
+                    {pipelineStatus.message || 'Processing...'}
                   </span>
                   )
                 : (
-                    'Generate Tasks'
+                    'Sync & Generate Tasks'
                   )}
+            </button>
+            <button
+              type='button'
+              className='btn btn-secondary'
+              onClick={handleSyncOnly}
+              disabled={
+                syncConversationsMutation.isPending ||
+                pipelineStatus.step === 'syncing' ||
+                !selectedChannel ||
+                !startDate ||
+                !endDate
+              }
+            >
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                {pipelineStatus.step === 'syncing' ? (
+                  <>
+                    <CircularProgress size={16} />
+                    Syncing...
+                  </>
+                ) : (
+                  <>
+                    <SyncIcon />
+                    Sync Only
+                  </>
+                )}
+              </span>
             </button>
           </div>
         </form>

@@ -22,9 +22,6 @@ const Layout = ({ children }) => {
             <Link to='/tokens' className={isActive('/tokens')}>
               Tokens
             </Link>
-            <Link to='/conversations' className={isActive('/conversations')}>
-              Conversations
-            </Link>
             <Link to='/tasks' className={isActive('/tasks')}>
               Tasks
             </Link>
